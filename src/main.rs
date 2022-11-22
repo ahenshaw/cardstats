@@ -21,6 +21,7 @@ enum Value {
 }
 
 type Card = (u8, u32);
+type Hand = [Card];
 
 #[derive(Debug, Clone)]
 struct Deck {
@@ -40,15 +41,16 @@ impl Deck {
     }
 }
 
-fn is_flush(hand: &[Card]) -> bool {
+fn is_flush(hand: &Hand) -> bool {
     assert!(hand.len() == 5);
     let suits = hand[0].0 | hand[1].0 | hand[2].0 | hand[3].0 | hand[4].0;
     suits == 1 || suits == 2 || suits == 4 || suits == 8
 }
 
-fn check_straight(hand: &[Card]) -> Value {
+fn check_straight(hand: &Hand) -> Value {
     assert!(hand.len() == 5);
     let mut faces = [hand[0].1, hand[1].1, hand[2].1, hand[3].1, hand[4].1];
+
     faces.sort();
     if faces[4] != faces[0] * 16 {
         Value::HighCard
@@ -59,16 +61,13 @@ fn check_straight(hand: &[Card]) -> Value {
     }
 }
 
-fn max_same_kind(hand: &[Card]) -> usize {
-    let faces = [hand[0].1, hand[1].1, hand[2].1, hand[3].1, hand[4].1];
-    let counts = faces.iter().collect::<Counter<_>>();
+fn max_same_kind(hand: &Hand) -> usize {
+    let counts = hand.iter().map(|card| card.1).collect::<Counter<_>>();
     counts.k_most_common_ordered(1)[0].1
 }
 
-fn get_hand_value(hand: &[Card]) -> Value {
-    assert!(hand.len() == 5);
-
-    let bit_faces = hand[0].1 | hand[1].1 | hand[2].1 | hand[3].1 | hand[4].1;
+fn get_hand_value(hand: &Hand) -> Value {
+    let bit_faces = hand.iter().fold(0, |bits, card| bits | card.1);
     let value = match bit_faces.count_ones() {
         1 => Value::FiveOfAKind,
         2 => {
@@ -89,6 +88,7 @@ fn get_hand_value(hand: &[Card]) -> Value {
         5 => check_straight(&hand),
         _ => unreachable!(),
     };
+
     match (value, is_flush(&hand)) {
         (Value::RoyalStraight, true) => Value::RoyalFlush,
         (Value::Straight, true) => Value::StraightFlush,
@@ -110,8 +110,8 @@ fn main() {
     const HANDS_PER_SHUFFLE: usize = 52 / 5;
 
     println!("");
-    let mut sp = Spinner::new(
-        Spinners::Dots9,
+    let mut spinner = Spinner::new(
+        Spinners::Dots12,
         format!(
             "Simulating {} standard poker hands",
             REPS.separate_with_commas()
@@ -133,7 +133,7 @@ fn main() {
         .collect::<Counter<Value, usize>>();
 
     let elapsed = Instant::now() - start;
-    sp.stop_with_message(format!(
+    spinner.stop_with_message(format!(
         "Finished simulating {} standard poker hands",
         REPS.separate_with_commas()
     ));
