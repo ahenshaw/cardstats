@@ -1,0 +1,11 @@
+[package]
+name = "cardstats"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+counter = "0.5.7"
+fastrand = "1.8.0"
+itertools = "0.10.5"
+spinners = "4.1.0"
+thousands = "0.2.0"
