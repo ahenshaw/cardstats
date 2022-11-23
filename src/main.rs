@@ -20,7 +20,13 @@ enum Value {
     HighCard,
 }
 
-type Card = (u8, u32);
+#[derive(Debug, Clone)]
+struct Card {
+    rank: u32,
+    suit: u8,
+}
+
+// type Card = (u8, u32);
 type Hand = [Card];
 
 #[derive(Debug, Clone)]
@@ -28,11 +34,18 @@ struct Deck {
     cards: Vec<Card>,
 }
 
+// An ace has to be treated specially, as it can show up
+// as part of a royal straight or the lowest straight
+const ACE: u32 = u32::pow(2, 12);
+
 impl Deck {
     pub fn standard() -> Self {
         let cards: Vec<Card> = (0..4)
             .cartesian_product(0..13)
-            .map(|(suit, face)| (u8::pow(2, suit), u32::pow(2, face)))
+            .map(|(suit_index, rank_index)| Card {
+                suit: u8::pow(2, suit_index),
+                rank: u32::pow(2, rank_index),
+            })
             .collect();
         Deck { cards }
     }
@@ -41,20 +54,35 @@ impl Deck {
     }
 }
 
+/// Bitwise-or the card suits together.  If the suits collapse down to a single
+/// bit, then the hand is a flush.
 fn is_flush(hand: &Hand) -> bool {
     assert!(hand.len() == 5);
-    let suits = hand[0].0 | hand[1].0 | hand[2].0 | hand[3].0 | hand[4].0;
-    suits == 1 || suits == 2 || suits == 4 || suits == 8
+
+    let suits = hand[0].suit | hand[1].suit | hand[2].suit | hand[3].suit | hand[4].suit;
+    suits.count_ones() == 1
 }
 
 fn check_straight(hand: &Hand) -> Value {
     assert!(hand.len() == 5);
-    let mut faces = [hand[0].1, hand[1].1, hand[2].1, hand[3].1, hand[4].1];
+    let mut ranks = [
+        hand[0].rank,
+        hand[1].rank,
+        hand[2].rank,
+        hand[3].rank,
+        hand[4].rank,
+    ];
+    // dbg!(&hand);
+    ranks.sort();
 
-    faces.sort();
-    if faces[4] != faces[0] * 16 {
-        Value::HighCard
-    } else if faces[4] == u32::pow(2, 12) {
+    if (ranks[0] * 16) != ranks[4] {
+        if 8 == ranks[3] && ranks[4] == ACE {
+            // Ace, 2, 3, 4, 5
+            Value::Straight
+        } else {
+            Value::HighCard
+        }
+    } else if ranks[4] == u32::pow(2, 12) {
         Value::RoyalStraight
     } else {
         Value::Straight
@@ -62,13 +90,13 @@ fn check_straight(hand: &Hand) -> Value {
 }
 
 fn max_same_kind(hand: &Hand) -> usize {
-    let counts = hand.iter().map(|card| card.1).collect::<Counter<_>>();
+    let counts = hand.iter().map(|card| card.rank).collect::<Counter<_>>();
     counts.k_most_common_ordered(1)[0].1
 }
 
 fn get_hand_value(hand: &Hand) -> Value {
-    let bit_faces = hand.iter().fold(0, |bits, card| bits | card.1);
-    let value = match bit_faces.count_ones() {
+    let bit_ranks = hand.iter().fold(0, |bits, card| bits | card.rank);
+    let value = match bit_ranks.count_ones() {
         1 => Value::FiveOfAKind,
         2 => {
             if max_same_kind(&hand) == 4 {
@@ -106,7 +134,7 @@ fn get_hand_value(hand: &Hand) -> Value {
 }
 
 fn main() {
-    const REPS: usize = 100_000_000;
+    const REPS: usize = 10_000_000_000;
     const HANDS_PER_SHUFFLE: usize = 52 / 5;
 
     println!("");
