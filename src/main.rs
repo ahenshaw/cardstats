@@ -1,5 +1,6 @@
 use counter::Counter;
 use itertools::Itertools;
+use rayon::prelude::*;
 use spinners::{Spinner, Spinners};
 use std::time::Instant;
 use thousands::Separable;
@@ -72,7 +73,6 @@ fn check_straight(hand: &Hand) -> Value {
         hand[3].rank,
         hand[4].rank,
     ];
-    // dbg!(&hand);
     ranks.sort();
 
     if (ranks[0] * 16) != ranks[4] {
@@ -134,7 +134,7 @@ fn get_hand_value(hand: &Hand) -> Value {
 }
 
 fn main() {
-    const REPS: usize = 10_000_000_000;
+    const REPS: usize = 100_000_000;
     const HANDS_PER_SHUFFLE: usize = 52 / 5;
 
     println!("");
@@ -148,17 +148,27 @@ fn main() {
     );
     let start = Instant::now();
 
-    let counts = (0..(REPS / HANDS_PER_SHUFFLE))
-        .flat_map(|_| {
-            let mut deck = Deck::standard();
-            deck.shuffle();
-            let cards = &(deck.cards[..]);
-            cards
-                .chunks_exact(5)
-                .map(|hand| get_hand_value(&hand))
-                .collect::<Vec<_>>()
-        })
-        .collect::<Counter<Value, usize>>();
+    let counts: Counter<Value, usize> = (0..(REPS / HANDS_PER_SHUFFLE))
+        .into_par_iter()
+        .fold(
+            || Counter::<Value, usize>::new(),
+            |mut counter: Counter<Value, usize>, _| {
+                let mut deck = Deck::standard();
+                deck.shuffle();
+                let cards = &(deck.cards[..]);
+                cards
+                    .chunks_exact(5)
+                    .for_each(|hand| counter[&get_hand_value(&hand)] += 1);
+                counter
+            },
+        )
+        .reduce(
+            || Counter::<Value, usize>::new(),
+            |mut a, b| {
+                a.extend(&b);
+                a
+            },
+        );
 
     let elapsed = Instant::now() - start;
     spinner.stop_with_message(format!(
@@ -167,7 +177,6 @@ fn main() {
     ));
 
     println!("Elapsed time: {:?}\n", elapsed);
-
     let mut stats = counts.most_common();
     stats.reverse();
     for (k, v) in stats {
