@@ -3,7 +3,17 @@ name = "cardstats"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "cardstats"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cardstats"
+path = "src/main.rs"
+
 [dependencies]
+argparse = "0.2.2"
+clap = { version = "4.0.26", features = ["derive"] }
 counter = "0.5.7"
 fastrand = "1.8.0"
 itertools = "0.10.5"
